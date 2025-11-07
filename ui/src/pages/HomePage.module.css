@@ -1,0 +1,23 @@
+.main {
+  padding: 1rem;
+}
+
+.grid {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  & > * {
+    flex: 1;
+  }
+}
+
+.commandBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.progressBar {
+  margin-bottom: 1rem;
+}
