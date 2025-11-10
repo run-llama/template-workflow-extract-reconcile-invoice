@@ -16,6 +16,8 @@
   display: flex;
   justify-content: flex-end;
   margin-bottom: 1rem;
+  gap: 1rem;
+  align-items: center;
 }
 
 .progressBar {

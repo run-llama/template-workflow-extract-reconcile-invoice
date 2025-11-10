@@ -1,5 +1,5 @@
-import { useWorkflowHandler, useWorkflowRun } from "@llamaindex/ui";
-import { useEffect, useState } from "react";
+import { useWorkflow } from "@llamaindex/ui";
+import { useEffect, useRef, useState } from "react";
 
 export interface Metadata {
   json_schema: any;
@@ -13,29 +13,35 @@ export interface UseMetadataResult {
 }
 
 export function useMetadata() {
-  const run = useWorkflowRun();
-  const [handlerId, setHandlerId] = useState<string | undefined>(undefined);
-  const handler = useWorkflowHandler(handlerId ?? "");
+  const wf = useWorkflow("metadata");
   const [error, setError] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-
+  const [metadata, setMetadata] = useState<Metadata | undefined>(undefined);
+  const strictModeWorkaround = useRef(false);
   useEffect(() => {
+    if (strictModeWorkaround.current) {
+      return;
+    }
+    strictModeWorkaround.current = true;
     setLoading(true);
-    run
-      .runWorkflow("metadata", {})
-      .then((handlerSummary) => {
-        setHandlerId(handlerSummary.handler_id);
+    wf.runToCompletion({})
+      .then((handler) => {
+        if (handler.status === "completed") {
+          const result = handler.result?.data as unknown as Metadata;
+          setMetadata(result);
+        } else {
+          setError(
+            handler.error || `Unexpected workflow status: ${handler.status}`,
+          );
+        }
       })
       .catch((error) => {
-        setError(error.message);
+        setError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
         setLoading(false);
       });
   }, []);
-  const stopEvent = handler.events.find((event) =>
-    event.type.endsWith("MetadataResponse"),
-  );
-  const metadata = stopEvent?.data as Metadata | undefined;
+
   return { metadata, loading, error };
 }

@@ -37,7 +37,7 @@ class ContractDownloadedEvent(Event):
     pass
 
 
-class UIToast(Event):
+class Status(Event):
     """Event to show toast notifications in the UI"""
 
     level: Literal["info", "warning", "error"]
@@ -85,7 +85,7 @@ class IndexContractWorkflow(Workflow):
 
         logger.info(f"Downloading contract {filename} from {file_url.url}")
         ctx.write_event_to_stream(
-            UIToast(level="info", message=f"Downloading contract: {filename}")
+            Status(level="info", message=f"Downloading contract: {filename}")
         )
 
         client = httpx.AsyncClient()
@@ -112,7 +112,7 @@ class IndexContractWorkflow(Workflow):
 
         logger.info(f"Indexing contract {state.filename}")
         ctx.write_event_to_stream(
-            UIToast(level="info", message=f"Indexing contract: {state.filename}")
+            Status(level="info", message=f"Indexing contract: {state.filename}")
         )
 
         # Create a document with metadata
@@ -132,7 +132,7 @@ class IndexContractWorkflow(Workflow):
 
         logger.info(f"Successfully indexed contract {state.filename}")
         ctx.write_event_to_stream(
-            UIToast(
+            Status(
                 level="info",
                 message=f"Successfully indexed contract: {state.filename}",
             )

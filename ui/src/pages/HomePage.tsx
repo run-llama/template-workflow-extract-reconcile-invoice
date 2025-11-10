@@ -1,38 +1,17 @@
 import {
   ItemCount,
   WorkflowTrigger,
-  WorkflowProgressBar,
   ExtractedDataItemGrid,
-  useWorkflowHandlerList,
+  HandlerState,
 } from "@llamaindex/ui";
 import type { TypedAgentData } from "llama-cloud-services/beta/agent";
 import styles from "./HomePage.module.css";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { WorkflowProgress } from "@/lib/WorkflowProgress";
 
 export default function HomePage() {
-  const { taskKey } = taskCompletedState();
-  return <TaskList key={taskKey} />;
-}
-
-/**
- * Returns a key that increments when a task is completed, can be used to force a re-render of the task list
- */
-function taskCompletedState() {
-  const { handlers } = useWorkflowHandlerList("process-file");
-  const runningTasks = handlers.filter(
-    (handler) => handler.status === "running",
-  );
-  const [runningTaskCount, setRunningTaskCount] = useState(runningTasks.length);
-  const [taskKey, setTaskKey] = useState(0);
-  useEffect(() => {
-    if (runningTasks.length < runningTaskCount) {
-      // forcefully reload task list after a task is completed
-      setTaskKey(taskKey + 1);
-    }
-    setRunningTaskCount(runningTasks.length);
-  }, [runningTasks.length]);
-  return { runningTaskCount, taskKey };
+  return <TaskList />;
 }
 
 function TaskList() {
@@ -40,25 +19,37 @@ function TaskList() {
   const goToItem = (item: TypedAgentData) => {
     navigate(`/item/${item.id}`);
   };
+  const [reloadSignal, setReloadSignal] = useState(0);
+  const [handlers, setHandlers] = useState<HandlerState[]>([]);
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.grid}>
-          <ItemCount title="Total Items" />
+          <ItemCount title="Total Items" key={`total-items-${reloadSignal}`} />
           <ItemCount
             title="Reviewed"
             filter={{
               status: { eq: "approved" },
             }}
+            key={`reviewed-${reloadSignal}`}
           />
           <ItemCount
             title="Needs Review"
             filter={{
               status: { eq: "pending_review" },
             }}
+            key={`needs-review-${reloadSignal}`}
           />
         </div>
         <div className={styles.commandBar}>
+          <WorkflowProgress
+            workflowName={["process-file", "index-contract"]}
+            handlers={handlers}
+            onWorkflowCompletion={() => {
+              setReloadSignal(reloadSignal + 1);
+            }}
+          />
           <WorkflowTrigger
             workflowName="process-file"
             customWorkflowInput={(files) => {
@@ -67,6 +58,9 @@ function TaskList() {
               };
             }}
             title="Upload Invoice"
+            onSuccess={(handler) => {
+              setHandlers([...handlers, handler]);
+            }}
           />
           <WorkflowTrigger
             workflowName="index-contract"
@@ -76,13 +70,14 @@ function TaskList() {
               };
             }}
             title="Upload Contract"
+            onSuccess={(handler) => {
+              setHandlers([...handlers, handler]);
+            }}
           />
         </div>
-        <WorkflowProgressBar
-          className={styles.progressBar}
-          workflowName="process-file"
-        />
+
         <ExtractedDataItemGrid
+          key={reloadSignal}
           onRowClick={goToItem}
           builtInColumns={{
             fileName: true,

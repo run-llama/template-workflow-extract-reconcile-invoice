@@ -16,14 +16,15 @@
   "dependencies": {
     "@babel/runtime": "^7.27.6",
     "@lezer/highlight": "^1.2.1",
-    "@llamaindex/ui": "^2.1.2",
+    "@llamaindex/ui": "^3.2.0",
+    "@llamaindex/workflows-client": "^1.7.0",
     "@radix-ui/themes": "^3.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "llama-cloud-services": "^0.3.4",
     "lucide-react": "^0.514.0",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "react-router-dom": "^6.30.0",
     "sonner": "^2.0.5",
     "tw-animate-css": "^1.3.5"

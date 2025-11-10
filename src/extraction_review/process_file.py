@@ -39,7 +39,7 @@ class FileDownloadedEvent(Event):
     pass
 
 
-class UIToast(Event):
+class Status(Event):
     level: Literal["info", "warning", "error"]
     message: str
 
@@ -117,7 +117,7 @@ class ProcessFileWorkflow(Workflow):
         except Exception as e:
             logger.error(f"Error downloading file {state.file_id}: {e}", exc_info=True)
             ctx.write_event_to_stream(
-                UIToast(
+                Status(
                     level="error",
                     message=f"Error downloading file {state.file_id}: {e}",
                 )
@@ -140,7 +140,7 @@ class ProcessFileWorkflow(Workflow):
             )
             logger.info(f"Extracting data from file {state.filename}")
             ctx.write_event_to_stream(
-                UIToast(
+                Status(
                     level="info", message=f"Extracting data from file {state.filename}"
                 )
             )
@@ -168,7 +168,7 @@ class ProcessFileWorkflow(Workflow):
                 exc_info=True,
             )
             ctx.write_event_to_stream(
-                UIToast(
+                Status(
                     level="error",
                     message=f"Error extracting data from file {state.filename}: {e}",
                 )
@@ -185,7 +185,7 @@ class ProcessFileWorkflow(Workflow):
 
         logger.info("Reconciling invoice with contracts")
         ctx.write_event_to_stream(
-            UIToast(level="info", message="Matching invoice with contracts...")
+            Status(level="info", message="Matching invoice with contracts...")
         )
 
         try:
@@ -379,30 +379,23 @@ Provide your analysis in the specified format."""
         try:
             logger.info(f"Recorded extracted data for file {event.data.file_name}")
             ctx.write_event_to_stream(
-                UIToast(
+                Status(
                     level="info",
                     message=f"Recorded extracted data for file {event.data.file_name}",
                 )
             )
             # remove past data when reprocessing the same file
             if event.data.file_hash:
-                existing_data = await get_data_client().untyped_search(
+                await get_data_client().delete(
                     filter={
                         "file_hash": {
                             "eq": event.data.file_hash,
                         },
                     },
                 )
-                if existing_data.items:
-                    logger.info(
-                        f"Removing past data for file {event.data.file_name} with hash {event.data.file_hash}"
-                    )
-                    await asyncio.gather(
-                        *[
-                            get_data_client().delete_item(item.id)
-                            for item in existing_data.items
-                        ]
-                    )
+                logger.info(
+                    f"Removing past data for file {event.data.file_name} with hash {event.data.file_hash}"
+                )
             # finally, save the new data
             item_id = await get_data_client().create_item(event.data)
             return StopEvent(
@@ -414,7 +407,7 @@ Provide your analysis in the specified format."""
                 exc_info=True,
             )
             ctx.write_event_to_stream(
-                UIToast(
+                Status(
                     level="error",
                     message=f"Error recording extracted data for file {event.data.file_name}: {e}",
                 )
