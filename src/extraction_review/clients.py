@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # name for development
 agent_name = os.getenv("LLAMA_DEPLOY_DEPLOYMENT_NAME")
 # required for all llama cloud calls
-api_key = os.environ["LLAMA_CLOUD_API_KEY"]
+api_key = os.getenv("LLAMA_CLOUD_API_KEY")
 # get this in case running against a different environment than production
 base_url = os.getenv("LLAMA_CLOUD_BASE_URL")
 project_id = os.getenv("LLAMA_DEPLOY_PROJECT_ID")
