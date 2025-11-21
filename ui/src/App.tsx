@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@llamaindex/ui";
 import { Link } from "react-router-dom";
-import { Toaster } from "@llamaindex/ui";
+import { Toaster } from "sonner";
 import { useToolbar, ToolbarProvider } from "@/lib/ToolbarContext";
 import { MetadataProvider } from "@/lib/MetadataProvider";
 
