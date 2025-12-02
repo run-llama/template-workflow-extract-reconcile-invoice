@@ -30,7 +30,7 @@ function TaskList() {
           <ItemCount
             title="Reviewed"
             filter={{
-              status: { eq: "approved" },
+              status: { includes: ["approved", "rejected"] },
             }}
             key={`reviewed-${reloadSignal}`}
           />

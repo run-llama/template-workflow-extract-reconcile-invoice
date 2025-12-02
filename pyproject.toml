@@ -22,7 +22,8 @@ dev = [
     "ty>=0.0.1a16",
     "pytest>=8.4.1",
     "hatch>=1.14.1",
-    "llamactl>=0.3.0"
+    "llamactl>=0.3.0",
+    "pytest-asyncio>=1.3.0",
 ]
 
 [build-system]
