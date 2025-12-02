@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 export interface Metadata {
   json_schema: any;
   extracted_data_collection: string;
+  contracts_pipeline_id: string;
 }
 
 export interface UseMetadataResult {

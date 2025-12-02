@@ -9,6 +9,7 @@ import styles from "./HomePage.module.css";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { WorkflowProgress } from "@/lib/WorkflowProgress";
+import { ContractsDropdown } from "@/lib/ContractsDropdown";
 
 export default function HomePage() {
   return <TaskList />;
@@ -62,18 +63,22 @@ function TaskList() {
               setHandlers([...handlers, handler]);
             }}
           />
-          <WorkflowTrigger
-            workflowName="index-contract"
-            customWorkflowInput={(files) => {
-              return {
-                file_id: files[0].fileId,
-              };
-            }}
-            title="Upload Contract"
-            onSuccess={(handler) => {
-              setHandlers([...handlers, handler]);
-            }}
-          />
+          <div className="flex gap-1 items-center">
+            <WorkflowTrigger
+              workflowName="index-contract"
+              customWorkflowInput={(files) => {
+                return {
+                  file_ids: files.map((file) => file.fileId),
+                };
+              }}
+              title="Upload Contract"
+              multiple
+              onSuccess={(handler) => {
+                setHandlers([...handlers, handler]);
+              }}
+            />
+            <ContractsDropdown />
+          </div>
         </div>
 
         <ExtractedDataItemGrid
