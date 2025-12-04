@@ -78,7 +78,7 @@ def get_llama_cloud_client():
 @functools.lru_cache(maxsize=None)
 def get_contracts_index() -> LlamaCloudIndex:
     """Get or create the contracts index for storing and retrieving contract documents"""
-    return LlamaCloudIndex(
+    return LlamaCloudIndex.create_index(
         name=CONTRACTS_INDEX_NAME,
         project_id=project_id,
         api_key=api_key,
