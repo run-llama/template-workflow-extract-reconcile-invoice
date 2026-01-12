@@ -16,7 +16,7 @@
   "dependencies": {
     "@babel/runtime": "^7.27.6",
     "@lezer/highlight": "^1.2.1",
-    "@llamaindex/ui": "^3.2.0",
+    "@llamaindex/ui": "~3.6.1",
     "@llamaindex/workflows-client": "^1.7.0",
     "@radix-ui/themes": "^3.2.1",
     "class-variance-authority": "^0.7.1",
