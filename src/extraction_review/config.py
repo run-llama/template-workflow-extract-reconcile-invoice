@@ -124,7 +124,8 @@ EXTRACT_CONFIG = ExtractConfig(
     extraction_mode=ExtractMode.PREMIUM,
     system_prompt=None,
     # advanced. Only compatible with Premium mode.
+    citation_bbox=True,
     use_reasoning=False,
-    cite_sources=False,
+    cite_sources=True,
     confidence_scores=True,
 )

@@ -21,7 +21,7 @@
     "@radix-ui/themes": "^3.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "llama-cloud-services": "^0.3.4",
+    "llama-cloud-services": "^0.5.2",
     "lucide-react": "^0.514.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

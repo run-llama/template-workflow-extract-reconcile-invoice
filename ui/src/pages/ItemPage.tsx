@@ -15,6 +15,7 @@ import { modifyJsonSchema } from "@llamaindex/ui/lib";
 import { APP_TITLE } from "@/lib/config";
 import { downloadExtractedDataItem } from "@/lib/export";
 import { useMetadataContext } from "@/lib/MetadataProvider";
+import { convertBoundingBoxesToHighlights } from "@/lib/utils";
 
 export default function ItemPage() {
   const { itemId } = useParams<{ itemId: string }>();
@@ -111,7 +112,7 @@ export default function ItemPage() {
   return (
     <div className="flex h-full bg-gray-50">
       {/* Left Side - File Preview */}
-      <div className="w-1/2 border-r border-gray-200 bg-white">
+      <div className="w-1/2 border-r h-full border-gray-200 bg-white">
         {itemData.data.file_id && (
           <FilePreview
             fileId={itemData.data.file_id}
@@ -133,15 +134,11 @@ export default function ItemPage() {
             onChange={(updatedData) => {
               updateData(updatedData);
             }}
-            onClickField={(args) => {
-              // TODO: set multiple highlights
-              setHighlight({
-                page: args.metadata?.citation?.[0]?.page ?? 1,
-                x: 100,
-                y: 100,
-                width: 0,
-                height: 0,
-              });
+            onHoverField={(args) => {
+              const highlights = convertBoundingBoxesToHighlights(
+                args?.metadata?.citation,
+              );
+              setHighlight(highlights[0]);
             }}
             jsonSchema={itemHookData.jsonSchema}
           />
