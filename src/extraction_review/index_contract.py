@@ -9,12 +9,12 @@ from pathlib import Path
 from typing import Literal
 
 import httpx
-from llama_index.core import Document
+from llama_cloud.types.pipelines import CloudDocumentCreateParam
 from pydantic import BaseModel
 from workflows import Context, Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from .clients import get_contracts_index, get_llama_cloud_client
+from .clients import get_contracts_pipeline_id, get_llama_cloud_client
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class IndexContractWorkflow(Workflow):
 
         # Create a document with metadata
         file_content = Path(file_path).read_text(errors="ignore")
-        document = Document(
+        document = CloudDocumentCreateParam(
             text=file_content,
             metadata={
                 "filename": filename,
@@ -141,9 +141,13 @@ class IndexContractWorkflow(Workflow):
             },
         )
 
-        # Get the contracts index and insert the document
-        index = get_contracts_index()
-        await index.ainsert(document)
+        # Get the contracts pipeline and upsert the document
+        client = get_llama_cloud_client()
+        pipeline_id = await get_contracts_pipeline_id()
+        await client.pipelines.documents.upsert(
+            pipeline_id=pipeline_id,
+            body=[document],
+        )
 
         logger.info(f"Successfully indexed contract {filename}")
         ctx.write_event_to_stream(

@@ -1,10 +1,10 @@
-import { ExtractedData } from "llama-cloud-services/beta/agent";
 import {
   ApiClients,
   createWorkflowsClient,
   createWorkflowsConfig,
-  createCloudAgentClient,
-  cloudApiClient,
+  configureCloudClient,
+  getCloudClient,
+  createAgentDataConfig,
 } from "@llamaindex/ui";
 import { AGENT_NAME } from "./config";
 import type { Metadata } from "./useMetadata";
@@ -13,16 +13,11 @@ const platformToken = import.meta.env.VITE_LLAMA_CLOUD_API_KEY;
 const apiBaseUrl = import.meta.env.VITE_LLAMA_CLOUD_BASE_URL;
 const projectId = import.meta.env.VITE_LLAMA_DEPLOY_PROJECT_ID;
 
-// Configure the platform client
-cloudApiClient.setConfig({
-  ...(apiBaseUrl && { baseUrl: apiBaseUrl }),
-  headers: {
-    // optionally use a backend API token scoped to a project. For local development,
-    ...(platformToken && { authorization: `Bearer ${platformToken}` }),
-    // This header is required for requests to correctly scope to the agent's project
-    // when authenticating with a user cookie
-    ...(projectId && { "Project-Id": projectId }),
-  },
+// Configure the cloud client
+configureCloudClient({
+  ...(apiBaseUrl && { baseURL: apiBaseUrl }),
+  ...(platformToken && { apiKey: platformToken }),
+  ...(projectId && { projectId }),
 });
 
 export function createBaseWorkflowClient(): ReturnType<
@@ -37,15 +32,14 @@ export function createBaseWorkflowClient(): ReturnType<
 
 export function createClients(metadata: Metadata): ApiClients {
   const workflowsClient = createBaseWorkflowClient();
-  const agentClient = createCloudAgentClient<ExtractedData<any>>({
-    client: cloudApiClient,
+  const agentDataConfig = createAgentDataConfig({
     windowUrl: typeof window !== "undefined" ? window.location.href : undefined,
     collection: metadata.extracted_data_collection,
   });
 
   return {
     workflowsClient,
-    cloudApiClient,
-    agentDataClient: agentClient,
-  } as ApiClients;
+    cloudApiClient: getCloudClient(),
+    agentDataConfig,
+  };
 }

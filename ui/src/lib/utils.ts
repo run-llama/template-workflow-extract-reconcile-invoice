@@ -1,7 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Highlight } from "@llamaindex/ui";
-import type { FieldCitation } from "llama-cloud-services/beta/agent";
+import type { Highlight, FieldCitation } from "@llamaindex/ui";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

@@ -1,29 +1,65 @@
 """
-For simple configuration of the extraction review application, just customize this file.
+Configuration for the extraction review application.
 
-If you need more control, feel free to edit the rest of the application
+Configuration is loaded from configs/config.json via ResourceConfig.
+The unified config contains both extraction settings and the JSON schema.
+
+Extraction can run in two modes, controlled by the "extraction_agent_id" field
+in configs/config.json:
+
+  - Local (default): extraction_agent_id is null. Uses the json_schema and
+    settings defined in config.json directly via extraction.run().
+
+  - Remote agent: extraction_agent_id is set to a LlamaCloud extraction agent
+    ID. Uses extraction.jobs.extract(extraction_agent_id=...) which delegates
+    schema and settings to the remote agent. The local json_schema and settings
+    in config.json are ignored — both extraction and the metadata workflow fetch
+    the schema directly from the remote agent.
 """
 
-from __future__ import annotations
+import logging
+from typing import Any, Literal
 
-import os
-
-from llama_cloud import ExtractConfig
-from llama_cloud_services.extract import ExtractMode
 from pydantic import BaseModel, Field
 
-# The name of the extraction agent to use. Prefers the name of this deployment when deployed to isolate environments.
-# Note that the application will create a new agent from the below ExtractionSchema if the extraction agent does not yet exist.
-EXTRACTION_AGENT_NAME: str = (
-    os.getenv("LLAMA_DEPLOY_DEPLOYMENT_NAME") or "invoice-reconciliation"
-)
-# The name of the collection to use for storing extracted data. This will be qualified by the agent name.
-# When developing locally, this will use the _public collection (shared within the project), otherwise agent
-# data is isolated to each agent
+from .json_util import get_extraction_schema as get_extraction_schema
+
+logger = logging.getLogger(__name__)
+
+
+# The name of the collection to use for storing extracted data.
 EXTRACTED_DATA_COLLECTION: str = "invoices"
 
 # The name of the LlamaCloud index for storing contracts
 CONTRACTS_INDEX_NAME: str = "contracts"
+
+
+class ExtractSettings(BaseModel):
+    extraction_mode: Literal["FAST", "PREMIUM", "MULTIMODAL"]
+    system_prompt: str | None = None
+    citation_bbox: bool = False
+    use_reasoning: bool = False
+    cite_sources: bool = False
+    confidence_scores: bool = False
+
+
+class ExtractConfig(BaseModel):
+    json_schema: dict[str, Any]
+    settings: ExtractSettings
+    # Set this to a LlamaCloud extraction agent ID to use a remote agent's
+    # schema and settings instead of the local json_schema/settings above.
+    # When set, extraction uses extraction.jobs.extract(extraction_agent_id=...)
+    # and the local settings are ignored for extraction.
+    extraction_agent_id: str | None = None
+
+
+class JsonSchema(BaseModel):
+    type: str = "object"
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
 
 
 # Invoice extraction schema - extracted from invoice documents
@@ -118,14 +154,3 @@ class InvoiceWithReconciliation(InvoiceExtractionSchema):
         default=None,
         description="List of discrepancies found between invoice and contract",
     )
-
-
-EXTRACT_CONFIG = ExtractConfig(
-    extraction_mode=ExtractMode.PREMIUM,
-    system_prompt=None,
-    # advanced. Only compatible with Premium mode.
-    citation_bbox=True,
-    use_reasoning=False,
-    cite_sources=True,
-    confidence_scores=True,
-)

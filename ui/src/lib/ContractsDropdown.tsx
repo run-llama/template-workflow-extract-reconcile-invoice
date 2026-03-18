@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  paginatedListPipelineDocumentsApiV1PipelinesPipelineIdDocumentsPaginatedGet,
-  deletePipelineDocumentApiV1PipelinesPipelineIdDocumentsDocumentIdDelete,
-  readFileContentApiV1FilesIdContentGet,
-} from "llama-cloud-services/api";
+import { getCloudClient } from "@llamaindex/ui";
+import type { CloudDocument } from "@llamaindex/llama-cloud/resources/pipelines/documents";
 import {
   Button,
   DropdownMenu,
@@ -12,7 +9,6 @@ import {
   DropdownMenuSeparator,
   ScrollArea,
 } from "@llamaindex/ui";
-import type { CloudDocument } from "llama-cloud-services/api";
 import { Trash2, ChevronDown, Loader2 } from "lucide-react";
 import { useMetadata } from "./useMetadata";
 
@@ -34,7 +30,7 @@ function useContractsLoader(
 ): UseContractsLoaderResult {
   const [contracts, setContracts] = useState<CloudDocument[]>([]);
   const [total, setTotal] = useState<number | null>(null);
-  const [offset, setOffset] = useState(0);
+  const [skip, setSkip] = useState(0);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
@@ -44,40 +40,26 @@ function useContractsLoader(
 
       setLoading(true);
       try {
-        const currentOffset = reset ? 0 : offset;
-        const response =
-          await paginatedListPipelineDocumentsApiV1PipelinesPipelineIdDocumentsPaginatedGet(
-            {
-              path: {
-                pipeline_id: pipelineId,
-              },
-              query: {
-                offset: currentOffset,
-                limit: LIMIT,
-              },
-            },
-          );
+        const currentSkip = reset ? 0 : skip;
+        const client = getCloudClient();
+        const page = await client.pipelines.documents.list(pipelineId, {
+          skip: currentSkip,
+          limit: LIMIT,
+        });
 
-        if (response.data) {
-          setTotal(response.data.total_count);
-          setContracts((prev) =>
-            reset
-              ? response.data!.documents
-              : [...prev, ...response.data!.documents],
-          );
-          setOffset(currentOffset + response.data.documents.length);
-          setHasMore(
-            currentOffset + response.data.documents.length <
-              response.data.total_count,
-          );
-        }
+        const documents = page.documents;
+        const totalCount = page.total_count;
+        setTotal(totalCount);
+        setContracts((prev) => (reset ? documents : [...prev, ...documents]));
+        setSkip(currentSkip + documents.length);
+        setHasMore(currentSkip + documents.length < totalCount);
       } catch (error) {
         console.error("Failed to load contracts:", error);
       } finally {
         setLoading(false);
       }
     },
-    [pipelineId, offset, loading],
+    [pipelineId, skip, loading],
   );
 
   useEffect(() => {
@@ -136,14 +118,10 @@ function useDeleteContract(
 
       setDeletingId(documentId);
       try {
-        await deletePipelineDocumentApiV1PipelinesPipelineIdDocumentsDocumentIdDelete(
-          {
-            path: {
-              pipeline_id: pipelineId,
-              document_id: documentId,
-            },
-          },
-        );
+        const client = getCloudClient();
+        await client.pipelines.documents.delete(documentId, {
+          pipeline_id: pipelineId,
+        });
 
         setDeleteConfirmId(null);
         onSuccess?.();
@@ -199,14 +177,12 @@ export function ContractsDropdown({ onDeleteSuccess }: ContractsDropdownProps) {
     }
 
     try {
-      const response = await readFileContentApiV1FilesIdContentGet({
-        path: { id: fileId },
-      });
+      const client = getCloudClient();
+      const response = await client.files.get(fileId);
 
-      if (response.data?.url) {
-        // Create a temporary link and trigger download
+      if (response?.url) {
         const link = document.createElement("a");
-        link.href = response.data.url;
+        link.href = response.url;
         link.download = (contract.metadata?.filename as string) || "contract";
         document.body.appendChild(link);
         link.click();
@@ -225,14 +201,12 @@ export function ContractsDropdown({ onDeleteSuccess }: ContractsDropdownProps) {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="default"
-          size="icon"
-          className="cursor-pointer bg-black hover:bg-black/90 text-white"
+        <button
+          className="cursor-pointer bg-black hover:bg-black/90 text-white rounded-md p-2"
           aria-label="View contracts"
         >
           <ChevronDown className="h-4 w-4" />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-96" align="end">
@@ -267,23 +241,21 @@ export function ContractsDropdown({ onDeleteSuccess }: ContractsDropdownProps) {
                           disabled={deletingId === contract.id}
                           variant="destructive"
                           size="sm"
-                          className="flex-1 cursor-pointer"
                           aria-label={`Confirm delete ${(contract.metadata?.filename as string) || "Untitled"}`}
-                        >
-                          {deletingId === contract.id
-                            ? "Deleting..."
-                            : "Confirm"}
-                        </Button>
+                          label={
+                            deletingId === contract.id
+                              ? "Deleting..."
+                              : "Confirm"
+                          }
+                        />
                         <Button
                           onClick={cancelDelete}
                           disabled={deletingId === contract.id}
                           variant="outline"
                           size="sm"
-                          className="flex-1 cursor-pointer"
                           aria-label="Cancel delete"
-                        >
-                          Cancel
-                        </Button>
+                          label="Cancel"
+                        />
                       </div>
                     </div>
                   ) : (
@@ -300,10 +272,8 @@ export function ContractsDropdown({ onDeleteSuccess }: ContractsDropdownProps) {
                         </p>
                       </button>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                      <button
+                        className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-destructive cursor-pointer flex items-center justify-center rounded-md hover:bg-accent"
                         onClick={(e) => {
                           e.stopPropagation();
                           showDeleteConfirm(contract.id);
@@ -312,7 +282,7 @@ export function ContractsDropdown({ onDeleteSuccess }: ContractsDropdownProps) {
                         type="button"
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </button>
                     </div>
                   )}
                   {index < contracts.length - 1 && <DropdownMenuSeparator />}

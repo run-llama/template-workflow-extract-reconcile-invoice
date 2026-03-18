@@ -1,11 +1,5 @@
-import type {
-  ExtractedData,
-  TypedAgentData,
-} from "llama-cloud-services/beta/agent";
+import type { AgentDataItem, ExtractedData } from "@llamaindex/ui";
 
-/**
- * Downloads data as a JSON file
- */
 export function downloadJSON<T>(
   data: T,
   filename: string = "extraction-results.json",
@@ -20,19 +14,16 @@ export function downloadJSON<T>(
   document.body.appendChild(link);
   link.click();
 
-  // Cleanup
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
 
-/**
- * Downloads extracted data item as JSON
- */
-export function downloadExtractedDataItem<T>(
-  item: TypedAgentData<ExtractedData<T>>,
-) {
-  const fileName = item.data.file_name || "item";
-  const timestamp = item.createdAt.toISOString().split("T")[0];
+export function downloadExtractedDataItem(item: AgentDataItem) {
+  const extractedData = item.data as ExtractedData<unknown>;
+  const fileName = extractedData.file_name || "item";
+  const timestamp = item.created_at
+    ? new Date(item.created_at).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
   const filename = `${fileName}-${timestamp}.json`;
 
   downloadJSON(item, filename);
