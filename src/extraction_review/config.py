@@ -2,24 +2,20 @@
 Configuration for the extraction review application.
 
 Configuration is loaded from configs/config.json via ResourceConfig.
-The unified config contains both extraction settings and the JSON schema.
-
-Extraction can run in two modes, controlled by the "extraction_agent_id" field
-in configs/config.json:
-
-  - Local (default): extraction_agent_id is null. Uses the json_schema and
-    settings defined in config.json directly via extraction.run().
-
-  - Remote agent: extraction_agent_id is set to a LlamaCloud extraction agent
-    ID. Uses extraction.jobs.extract(extraction_agent_id=...) which delegates
-    schema and settings to the remote agent. The local json_schema and settings
-    in config.json are ignored — both extraction and the metadata workflow fetch
-    the schema directly from the remote agent.
+Each top-level key in config.json maps to an SDK product-configuration type:
+the discriminated union members returned by `client.configurations.retrieve`.
+Each template-side subclass adds an optional `configuration_id` so a key
+can either carry an inline snapshot OR point at a saved platform config.
 """
 
 import logging
-from typing import Any, Literal
+import os
 
+from llama_cloud.types.beta.split_category import SplitCategory
+from llama_cloud.types.classify_v2_parameters import ClassifyV2Parameters, Rule
+from llama_cloud.types.extract_v2_parameters import ExtractV2Parameters
+from llama_cloud.types.parse_v2_parameters import ParseV2Parameters
+from llama_cloud.types.split_v1_parameters import SplitV1Parameters
 from pydantic import BaseModel, Field
 
 from .json_util import get_extraction_schema as get_extraction_schema
@@ -31,35 +27,49 @@ logger = logging.getLogger(__name__)
 EXTRACTED_DATA_COLLECTION: str = "invoices"
 
 # The name of the LlamaCloud index for storing contracts
-CONTRACTS_INDEX_NAME: str = "contracts"
+# Override with CONTRACTS_INDEX_NAME env var (useful when running against a
+# shared staging project where the default name may collide with other data).
+CONTRACTS_INDEX_NAME: str = os.getenv("CONTRACTS_INDEX_NAME", "contracts")
 
 
-class ExtractSettings(BaseModel):
-    extraction_mode: Literal["FAST", "PREMIUM", "MULTIMODAL"]
-    system_prompt: str | None = None
-    citation_bbox: bool = False
-    use_reasoning: bool = False
-    cite_sources: bool = False
-    confidence_scores: bool = False
+class ExtractConfig(ExtractV2Parameters):
+    """Extract product configuration.
+
+    Inherits the SDK `ExtractV2Parameters` shape. Set `configuration_id`
+    to a saved LlamaCloud configuration id (cfg-...) to pull parameters
+    from the platform instead of using the local values.
+    """
+
+    configuration_id: str | None = None
 
 
-class ExtractConfig(BaseModel):
-    json_schema: dict[str, Any]
-    settings: ExtractSettings
-    # Set this to a LlamaCloud extraction agent ID to use a remote agent's
-    # schema and settings instead of the local json_schema/settings above.
-    # When set, extraction uses extraction.jobs.extract(extraction_agent_id=...)
-    # and the local settings are ignored for extraction.
-    extraction_agent_id: str | None = None
+class ClassifyConfig(ClassifyV2Parameters):
+    """Classify product configuration (extension slot, unused by the workflow)."""
+
+    rules: list[Rule] = []
+    configuration_id: str | None = None
 
 
-class JsonSchema(BaseModel):
-    type: str = "object"
-    properties: dict[str, Any] = {}
-    required: list[str] = []
+class ParseConfig(ParseV2Parameters):
+    """Parse product configuration (extension slot)."""
 
-    def to_dict(self) -> dict[str, Any]:
-        return self.model_dump(exclude_none=True)
+    configuration_id: str | None = None
+
+
+class SplitConfig(SplitV1Parameters):
+    """Split product configuration (extension slot)."""
+
+    categories: list[SplitCategory] = []
+    configuration_id: str | None = None
+
+
+class Config(BaseModel):
+    """Root configuration model for configs/config.json."""
+
+    extract: ExtractConfig
+    classify: ClassifyConfig
+    parse: ParseConfig
+    split: SplitConfig
 
 
 # Invoice extraction schema - extracted from invoice documents

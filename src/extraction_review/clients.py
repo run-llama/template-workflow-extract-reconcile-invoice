@@ -1,7 +1,7 @@
 import logging
 import os
 
-from llama_cloud import AsyncLlamaCloud, ConflictError
+from llama_cloud import AsyncLlamaCloud
 from llama_index.llms.openai import OpenAI
 
 from extraction_review.config import CONTRACTS_INDEX_NAME
@@ -34,18 +34,15 @@ async def get_contracts_pipeline_id() -> str:
     global _contracts_pipeline_id
     if _contracts_pipeline_id is None:
         client = get_llama_cloud_client()
-        try:
-            pipeline = await client.pipelines.upsert(
-                name=CONTRACTS_INDEX_NAME,
-                project_id=project_id,
-            )
-        except ConflictError:
-            # Pipeline already exists — look it up by name
-            pipelines = await client.pipelines.list(
-                pipeline_name=CONTRACTS_INDEX_NAME,
-                project_id=project_id,
-            )
-            pipeline = pipelines[0]
+        # data_sink_id=None + transform_config are both required; omitting
+        # either trips a misleading 409 "integrity constraint" error. Leaving
+        # embedding_config unset lets the platform use managed OpenAI embeddings.
+        pipeline = await client.pipelines.upsert(
+            name=CONTRACTS_INDEX_NAME,
+            project_id=project_id,
+            data_sink_id=None,
+            transform_config={"mode": "auto"},
+        )
         _contracts_pipeline_id = pipeline.id
     return _contracts_pipeline_id
 

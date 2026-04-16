@@ -1,37 +1,80 @@
 {
   "extract": {
-    "extraction_agent_id": null,
-    "json_schema": {
+    "product_type": "extract_v2",
+    "configuration_id": null,
+    "data_schema": {
       "type": "object",
       "description": "Schema for extracting invoice data",
       "properties": {
         "invoice_number": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Invoice number or identifier"
         },
         "invoice_date": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Date of the invoice (YYYY-MM-DD format if possible)"
         },
         "vendor_name": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Name of the vendor or supplier"
         },
         "vendor_address": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Address of the vendor"
         },
         "purchase_order_number": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Purchase order (PO) number if present"
         },
         "payment_terms": {
-          "anyOf": [{ "type": "string" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Payment terms (e.g., Net 30, Net 60, Due on receipt)"
         },
@@ -41,22 +84,50 @@
               "items": {
                 "properties": {
                   "description": {
-                    "anyOf": [{ "type": "string" }, { "type": "null" }],
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "default": null,
                     "description": "Description of the line item"
                   },
                   "quantity": {
-                    "anyOf": [{ "type": "number" }, { "type": "null" }],
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "default": null,
                     "description": "Quantity of the item"
                   },
                   "unit_price": {
-                    "anyOf": [{ "type": "number" }, { "type": "null" }],
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "default": null,
                     "description": "Price per unit of the item"
                   },
                   "total": {
-                    "anyOf": [{ "type": "number" }, { "type": "null" }],
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
                     "default": null,
                     "description": "Total price for this line item"
                   }
@@ -65,35 +136,71 @@
               },
               "type": "array"
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ],
           "default": null,
           "description": "List of line items on the invoice"
         },
         "subtotal": {
-          "anyOf": [{ "type": "number" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Subtotal before tax and other charges"
         },
         "tax": {
-          "anyOf": [{ "type": "number" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Tax amount"
         },
         "total": {
-          "anyOf": [{ "type": "number" }, { "type": "null" }],
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": null,
           "description": "Total amount due on the invoice"
         }
       }
     },
-    "settings": {
-      "extraction_mode": "PREMIUM",
-      "system_prompt": null,
-      "citation_bbox": true,
-      "use_reasoning": false,
-      "cite_sources": true,
-      "confidence_scores": true
-    }
+    "tier": "agentic",
+    "extraction_target": "per_doc",
+    "system_prompt": null,
+    "cite_sources": true,
+    "confidence_scores": true
+  },
+  "classify": {
+    "product_type": "classify_v2",
+    "configuration_id": null,
+    "rules": []
+  },
+  "parse": {
+    "product_type": "parse_v2",
+    "configuration_id": null,
+    "tier": "agentic",
+    "version": "latest"
+  },
+  "split": {
+    "product_type": "split_v1",
+    "configuration_id": null,
+    "categories": []
   }
 }

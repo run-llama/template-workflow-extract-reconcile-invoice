@@ -26,6 +26,19 @@ from .config import (
     InvoiceWithReconciliation,
 )
 
+
+def _field_metadata_dict(job: Any) -> dict[str, Any]:
+    """Pull document-level per-field metadata from a v2 extract job.
+
+    ExtractedData.create() only accepts dict/list/ExtractedFieldMetadata values,
+    so None entries for unextracted fields must be dropped.
+    """
+    if job.extract_metadata is None or job.extract_metadata.field_metadata is None:
+        return {}
+    doc_metadata = job.extract_metadata.field_metadata.document_metadata or {}
+    return {k: v for k, v in doc_metadata.items() if v is not None}
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,10 +108,14 @@ class ProcessFileWorkflow(Workflow):
         logger.info(f"Running file {file_id}")
 
         try:
-            files_page = await llama_cloud_client.files.list(
+            file_metadata = None
+            async for f in llama_cloud_client.files.list(
                 file_ids=[file_id], project_id=project_id
-            )
-            file_metadata = files_page.items[0]
+            ):
+                file_metadata = f
+                break
+            if file_metadata is None:
+                raise ValueError(f"File {file_id} not found")
             filename = file_metadata.name
         except Exception as e:
             logger.error(f"Error fetching file metadata {file_id}: {e}", exc_info=True)
@@ -115,18 +132,19 @@ class ProcessFileWorkflow(Workflow):
             Status(level="info", message=f"Extracting data from file {filename}")
         )
 
-        if extract_config.extraction_agent_id:
-            # Remote agent mode: delegate schema and settings to the agent
-            extract_job = await llama_cloud_client.extraction.jobs.extract(
-                extraction_agent_id=extract_config.extraction_agent_id,
-                file_id=file_id,
+        if extract_config.configuration_id:
+            extract_job = await llama_cloud_client.extract.create(
+                file_input=file_id,
+                configuration_id=extract_config.configuration_id,
+                project_id=project_id,
             )
         else:
-            # Local mode: use schema and settings from config.json
-            extract_job = await llama_cloud_client.extraction.run(
-                config=extract_config.settings.model_dump(),
-                data_schema=extract_config.json_schema,
-                file_id=file_id,
+            extract_job = await llama_cloud_client.extract.create(
+                file_input=file_id,
+                configuration=extract_config.model_dump(
+                    exclude={"configuration_id", "product_type"},
+                    exclude_none=True,
+                ),
                 project_id=project_id,
             )
 
@@ -163,28 +181,27 @@ class ProcessFileWorkflow(Workflow):
         if state.extract_job_id is None:
             raise ValueError("Job ID cannot be null when waiting for its completion")
 
-        await llama_cloud_client.extraction.jobs.wait_for_completion(
-            state.extract_job_id
+        await llama_cloud_client.extract.wait_for_completion(
+            state.extract_job_id,
+            project_id=project_id,
+        )
+        job = await llama_cloud_client.extract.get(
+            state.extract_job_id,
+            expand=["extract_metadata"],
+            project_id=project_id,
         )
 
-        extracted_result = await llama_cloud_client.extraction.jobs.get_result(
-            state.extract_job_id
-        )
         try:
             logger.info(
-                f"Extracted data: {json.dumps(extracted_result.model_dump(), indent=2)}"
+                f"Extracted data: {json.dumps(job.model_dump(mode='json'), indent=2, default=str)}"
             )
 
-            # Validate the extracted data as invoice
-            if not extracted_result.data:
+            if not job.extract_result:
                 raise ValueError("No data extracted from invoice")
 
-            invoice_data = InvoiceExtractionSchema.model_validate(extracted_result.data)
+            invoice_data = InvoiceExtractionSchema.model_validate(job.extract_result)
             logger.info(f"Extracted invoice data: {invoice_data}")
-            # Extract only the field_metadata we need, not the entire ExtractRun object
-            field_metadata = extracted_result.extraction_metadata.get(
-                "field_metadata", {}
-            )
+            field_metadata = _field_metadata_dict(job)
             return ExtractedEvent(
                 invoice_data=invoice_data, field_metadata=field_metadata
             )

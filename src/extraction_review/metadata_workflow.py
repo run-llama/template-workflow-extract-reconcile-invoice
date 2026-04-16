@@ -1,12 +1,13 @@
 from typing import Annotated, Any
 
 import jsonref
+from llama_cloud.types.configuration_response import ExtractV2Parameters
 from workflows import Workflow, step
 from workflows.events import StartEvent, StopEvent
 from workflows.resource import ResourceConfig
 
-from .clients import get_contracts_pipeline_id, get_llama_cloud_client
-from .config import EXTRACTED_DATA_COLLECTION, ExtractConfig, JsonSchema
+from .clients import get_contracts_pipeline_id, get_llama_cloud_client, project_id
+from .config import EXTRACTED_DATA_COLLECTION, ExtractConfig
 
 
 class MetadataResponse(StopEvent):
@@ -22,15 +23,6 @@ class MetadataWorkflow(Workflow):
     async def get_metadata(
         self,
         _: StartEvent,
-        extraction_schema: Annotated[
-            JsonSchema,
-            ResourceConfig(
-                config_file="configs/config.json",
-                path_selector="extract.json_schema",
-                label="Extraction Schema",
-                description="JSON Schema defining the fields to extract from documents",
-            ),
-        ],
         extract_config: Annotated[
             ExtractConfig,
             ResourceConfig(
@@ -43,18 +35,24 @@ class MetadataWorkflow(Workflow):
     ) -> MetadataResponse:
         """Return the data schema and storage settings for the review interface.
 
-        When extraction_agent_id is set, fetches the schema from the remote
-        agent so the UI always reflects what the agent will actually extract.
-        Otherwise uses the local schema from config.json.
+        When `configuration_id` is set, fetches the schema from the saved
+        extract configuration so the UI always reflects what will actually be
+        extracted. Otherwise uses the local schema from config.json.
         """
-        if extract_config.extraction_agent_id:
+        if extract_config.configuration_id:
             client = get_llama_cloud_client()
-            agent = await client.extraction.extraction_agents.get(
-                extract_config.extraction_agent_id
+            config_resp = await client.configurations.retrieve(
+                extract_config.configuration_id,
+                project_id=project_id,
             )
-            schema_dict = agent.data_schema
+            params = config_resp.parameters
+            if not isinstance(params, ExtractV2Parameters):
+                raise ValueError(
+                    f"Configuration {extract_config.configuration_id} is not extract_v2"
+                )
+            schema_dict = dict(params.data_schema)
         else:
-            schema_dict = extraction_schema.to_dict()
+            schema_dict = dict(extract_config.data_schema)
 
         json_schema = jsonref.replace_refs(schema_dict, proxies=False)
         contracts_pipeline_id = await get_contracts_pipeline_id()
