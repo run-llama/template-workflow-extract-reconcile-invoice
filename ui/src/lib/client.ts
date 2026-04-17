@@ -33,6 +33,7 @@ export function createBaseWorkflowClient(): ReturnType<
 export function createClients(metadata: Metadata): ApiClients {
   const workflowsClient = createBaseWorkflowClient();
   const agentDataConfig = createAgentDataConfig({
+    deploymentName: import.meta.env.PROD ? AGENT_NAME : undefined,
     windowUrl: typeof window !== "undefined" ? window.location.href : undefined,
     collection: metadata.extracted_data_collection,
   });
