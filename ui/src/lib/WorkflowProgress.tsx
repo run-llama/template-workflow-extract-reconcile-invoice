@@ -4,8 +4,8 @@ import {
   StreamOperation,
   HandlerState,
 } from "@llamaindex/ui";
-import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, X } from "lucide-react";
 import { cn } from "./utils";
 
 interface StatusMessage {
@@ -15,9 +15,17 @@ interface StatusMessage {
     message: string;
   };
 }
+
+type FailedHandler = {
+  handler_id: string;
+  error: string;
+  started_at: string;
+};
+
 /**
- * Given a workflow type, keeps track of the number of running handlers and the maximum number of running handlers.
- * Has hooks to notify when a workflow handler is completed.
+ * Tracks running handlers for a workflow and surfaces any that fail in this
+ * session as dismissible cards. Without this, a pipeline crash before the
+ * agent_data write is completely invisible in the UI.
  */
 export const WorkflowProgress = ({
   workflowName,
@@ -27,8 +35,8 @@ export const WorkflowProgress = ({
 }: {
   workflowName: string[];
   onWorkflowCompletion?: (handlerIds: string[]) => void;
-  handlers?: HandlerState[]; // specific handlers to track, e.g. after triggering a workflow run
-  sync?: boolean; // whether to sync the handlers with the query on mount
+  handlers?: HandlerState[];
+  sync?: boolean;
 }) => {
   const handlersService = useHandlers({
     query: { workflow_name: workflowName, status: ["running"] },
@@ -53,10 +61,28 @@ export const WorkflowProgress = ({
   const hideTimerRef = useRef<number | undefined>(undefined);
   const clearTimerRef = useRef<number | undefined>(undefined);
   const [hasHadRunning, setHasHadRunning] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  // useHandlers syncs to `status: ["running"]` and evicts terminal handlers,
+  // so failed handlers have to be snapshotted locally on SSE onError.
+  const [failed, setFailed] = useState<Map<string, FailedHandler>>(
+    () => new Map(),
+  );
 
-  const runningHandlers = Object.values(handlersService.state.handlers).filter(
+  const allHandlers = Object.values(handlersService.state.handlers);
+  const runningHandlers = allHandlers.filter(
     (handler) => handler.status === "running",
   );
+  const failedHandlers = useMemo(
+    () =>
+      Array.from(failed.values())
+        .filter((h) => !dismissed.has(h.handler_id))
+        .sort(
+          (a, b) =>
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+        ),
+    [failed, dismissed],
+  );
+
   const runningHandlersKey = runningHandlers
     .map((handler) => handler.handler_id)
     .sort()
@@ -65,17 +91,38 @@ export const WorkflowProgress = ({
   useEffect(() => {
     for (const handler of runningHandlers) {
       if (!subscribed.current[handler.handler_id]) {
-        handlersService.actions(handler.handler_id).subscribeToEvents({
-          onComplete() {
-            subscribed.current[handler.handler_id]?.disconnect();
-            delete subscribed.current[handler.handler_id];
-          },
-          onData(data) {
-            if (data.type === "Status") {
-              setStatusMessage(data.data as StatusMessage["data"]);
-            }
-          },
-        });
+        const handlerId = handler.handler_id;
+        const startedAt = handler.started_at;
+        subscribed.current[handlerId] = handlersService
+          .actions(handlerId)
+          .subscribeToEvents({
+            onError(error) {
+              // SSE onError is the only reliable terminal signal for a failed
+              // handler: GET /handlers/{id} returns 500 for failed handlers,
+              // so sync() cannot retrieve the state.
+              setFailed((prev) => {
+                if (prev.has(handlerId)) return prev;
+                const next = new Map(prev);
+                next.set(handlerId, {
+                  handler_id: handlerId,
+                  error: error.message,
+                  started_at: startedAt,
+                });
+                return next;
+              });
+              subscribed.current[handlerId]?.disconnect();
+              delete subscribed.current[handlerId];
+            },
+            onComplete() {
+              subscribed.current[handlerId]?.disconnect();
+              delete subscribed.current[handlerId];
+            },
+            onData(data) {
+              if (data.type === "Status") {
+                setStatusMessage(data.data as StatusMessage["data"]);
+              }
+            },
+          });
       }
     }
   }, [runningHandlersKey]);
@@ -144,52 +191,88 @@ export const WorkflowProgress = ({
     }
   }, [runningHandlers.length, hasHadRunning]);
 
-  if (!runningHandlers.length && !hasHadRunning) {
+  const dismiss = (handlerId: string) => {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(handlerId);
+      return next;
+    });
+  };
+
+  const showProgressPill = runningHandlers.length > 0 || hasHadRunning;
+
+  if (!showProgressPill && failedHandlers.length === 0) {
     return null;
   }
   return (
-    <div className="relative w-full rounded-full bg-muted text-muted-foreground border border-border px-4 py-2 flex items-center gap-1 text-xs overflow-hidden shadow-sm">
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full z-0 [box-shadow:inset_0_1px_0_rgba(255,255,255,0.6)] dark:[box-shadow:inset_0_1px_0_rgba(0,0,0,0.35)]"
-      />
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full z-0 opacity-60 dark:opacity-25 [background:linear-gradient(to_bottom,rgba(255,255,255,0.55),rgba(255,255,255,0.15))] dark:[background:linear-gradient(to_bottom,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]"
-      />
-      <div className="relative z-10 flex items-center gap-1">
-        {runningHandlers.length > 0 ? (
-          <>
-            <Loader2
-              className="h-3 w-3 animate-spin shrink-0"
-              aria-hidden="true"
-            />
-            <span>
-              {runningHandlers.length} running workflow
-              {runningHandlers.length === 1 ? "" : "s"}
-            </span>
-          </>
-        ) : (
-          <span>all workflows completed</span>
-        )}
-        {statusMessage && (
+    <div className="flex flex-col gap-2 w-full">
+      {showProgressPill && (
+        <div className="relative w-full rounded-full bg-muted text-muted-foreground border border-border px-4 py-2 flex items-center gap-1 text-xs overflow-hidden shadow-sm">
           <span
-            className={cn(
-              "ml-2 transition-all duration-300",
-              statusVisible
-                ? "opacity-100 translate-x-0"
-                : "opacity-0 translate-x-2",
-              statusMessage.level === "error"
-                ? "text-red-500"
-                : statusMessage.level === "warning"
-                  ? "text-yellow-600"
-                  : undefined,
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full z-0 [box-shadow:inset_0_1px_0_rgba(255,255,255,0.6)] dark:[box-shadow:inset_0_1px_0_rgba(0,0,0,0.35)]"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full z-0 opacity-60 dark:opacity-25 [background:linear-gradient(to_bottom,rgba(255,255,255,0.55),rgba(255,255,255,0.15))] dark:[background:linear-gradient(to_bottom,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]"
+          />
+          <div className="relative z-10 flex items-center gap-1">
+            {runningHandlers.length > 0 ? (
+              <>
+                <Loader2
+                  className="h-3 w-3 animate-spin shrink-0"
+                  aria-hidden="true"
+                />
+                <span>
+                  {runningHandlers.length} running workflow
+                  {runningHandlers.length === 1 ? "" : "s"}
+                </span>
+              </>
+            ) : (
+              <span>all workflows completed</span>
             )}
+            {statusMessage && (
+              <span
+                className={cn(
+                  "ml-2 transition-all duration-300",
+                  statusVisible
+                    ? "opacity-100 translate-x-0"
+                    : "opacity-0 translate-x-2",
+                  statusMessage.level === "error"
+                    ? "text-red-500"
+                    : statusMessage.level === "warning"
+                      ? "text-yellow-600"
+                      : undefined,
+                )}
+              >
+                {statusMessage.message}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+      {failedHandlers.map((handler) => (
+        <div
+          key={handler.handler_id}
+          data-testid="workflow-failure-card"
+          className="relative w-full rounded-md border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950 px-3 py-2 text-xs text-red-900 dark:text-red-100 flex items-start gap-2 shadow-sm"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-medium">Workflow failed</div>
+            <div className="mt-0.5 break-words opacity-90">
+              {handler.error || "No error message available."}
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            className="shrink-0 opacity-60 hover:opacity-100 transition"
+            onClick={() => dismiss(handler.handler_id)}
           >
-            {statusMessage.message}
-          </span>
-        )}
-      </div>
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
     </div>
   );
 };
