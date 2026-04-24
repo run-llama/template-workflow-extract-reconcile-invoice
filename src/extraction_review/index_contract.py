@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from workflows import Context, Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from .clients import get_contracts_pipeline_id, get_llama_cloud_client
+from .clients import get_contracts_pipeline_id, get_llama_cloud_client, project_id
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,14 @@ class IndexContractWorkflow(Workflow):
         """Download the contract file from LlamaCloud storage (runs in parallel)"""
         file_id = event.file_id
 
-        file_metadata = await get_llama_cloud_client().files.get_file(id=file_id)
-        file_url = await get_llama_cloud_client().files.read_file_content(file_id)
+        client = get_llama_cloud_client()
+        file_metadata = None
+        async for f in client.files.list(file_ids=[file_id], project_id=project_id):
+            file_metadata = f
+            break
+        if file_metadata is None:
+            raise ValueError(f"File {file_id} not found")
+        file_url = await client.files.get(file_id)
 
         temp_dir = tempfile.gettempdir()
         filename = file_metadata.name
@@ -198,8 +204,9 @@ if __name__ == "__main__":
 
     async def main():
         # Example usage - upload a contract and index it
-        file = await get_llama_cloud_client().files.upload_file(
-            upload_file=Path("sample_contract.pdf").open("rb")
+        file = await get_llama_cloud_client().files.create(
+            file=Path("sample_contract.pdf").open("rb"),
+            purpose="extract",
         )
         result = await workflow.run(start_event=ContractFileEvent(file_ids=[file.id]))
         print(f"Indexed contract: {result}")
