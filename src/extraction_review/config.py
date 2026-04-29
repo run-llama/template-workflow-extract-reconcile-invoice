@@ -10,7 +10,9 @@ can either carry an inline snapshot OR point at a saved platform config.
 
 import logging
 import os
+from typing import Any
 
+import jsonref
 from llama_cloud.types.beta.split_category import SplitCategory
 from llama_cloud.types.classify_v2_parameters import ClassifyV2Parameters, Rule
 from llama_cloud.types.extract_v2_parameters import ExtractV2Parameters
@@ -144,8 +146,14 @@ class Discrepancy(BaseModel):
     )
 
 
-class InvoiceWithReconciliation(InvoiceExtractionSchema):
-    """Invoice data with reconciliation information"""
+class Reconciliation(BaseModel):
+    """Contract-linkage fields appended to an invoice by the reconcile step.
+
+    Separate from `InvoiceExtractionSchema` because these are not part of the
+    LlamaCloud extract output; they're produced downstream by
+    `reconcile_with_contract`. The review UI's display schema is built by
+    overlaying these properties onto the extract schema.
+    """
 
     matched_contract_id: str | None = Field(
         default=None, description="ID of the matched contract file in LlamaCloud"
@@ -164,3 +172,31 @@ class InvoiceWithReconciliation(InvoiceExtractionSchema):
         default=None,
         description="List of discrepancies found between invoice and contract",
     )
+
+
+class InvoiceWithReconciliation(Reconciliation, InvoiceExtractionSchema):
+    """Invoice data plus reconciliation overlay (the full agent_data shape)."""
+
+
+# Reconciliation overlay properties resolve once at import: the model is fixed,
+# so its JSON schema is constant. `replace_refs` flattens the `$defs/Discrepancy`
+# reference embedded in `discrepancies.items`.
+_RECON_OVERLAY_PROPS: dict[str, Any] = jsonref.replace_refs(
+    Reconciliation.model_json_schema(), proxies=False
+)["properties"]
+
+
+def build_review_schema(extract_data_schema: dict[str, Any]) -> dict[str, Any]:
+    """Compose the review-UI display schema from the extract data schema.
+
+    The `reconcile_with_contract` step appends fields beyond what extract
+    returns, so the displayed schema is the extract schema with reconciliation
+    properties overlaid. Reconciliation keys go first so the contract-match
+    verdict renders above invoice fields. The merge order here is the source
+    of truth for ordering, NOT the Pydantic class graph.
+    """
+    schema = jsonref.replace_refs(extract_data_schema, proxies=False)
+    return {
+        **schema,
+        "properties": {**_RECON_OVERLAY_PROPS, **schema["properties"]},
+    }

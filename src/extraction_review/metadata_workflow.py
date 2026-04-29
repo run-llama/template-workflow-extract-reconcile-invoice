@@ -1,13 +1,16 @@
 from typing import Annotated, Any
 
-import jsonref
 from llama_cloud.types.configuration_response import ExtractV2Parameters
 from workflows import Workflow, step
 from workflows.events import StartEvent, StopEvent
 from workflows.resource import ResourceConfig
 
 from .clients import get_contracts_pipeline_id, get_llama_cloud_client, project_id
-from .config import EXTRACTED_DATA_COLLECTION, ExtractConfig
+from .config import (
+    EXTRACTED_DATA_COLLECTION,
+    ExtractConfig,
+    build_review_schema,
+)
 
 
 class MetadataResponse(StopEvent):
@@ -54,10 +57,9 @@ class MetadataWorkflow(Workflow):
         else:
             schema_dict = dict(extract_config.data_schema)
 
-        json_schema = jsonref.replace_refs(schema_dict, proxies=False)
         contracts_pipeline_id = await get_contracts_pipeline_id()
         return MetadataResponse(
-            json_schema=json_schema,
+            json_schema=build_review_schema(schema_dict),
             extracted_data_collection=EXTRACTED_DATA_COLLECTION,
             contracts_pipeline_id=contracts_pipeline_id,
         )
