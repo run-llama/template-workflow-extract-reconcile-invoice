@@ -33,8 +33,7 @@ export default function ItemPage() {
 
   useEffect(() => {
     const extractedData = itemHookData.item?.data as
-      | ExtractedData<unknown>
-      | undefined;
+      ExtractedData<unknown> | undefined;
     const fileName = extractedData?.file_name;
     if (fileName) {
       setBreadcrumbs([
